@@ -1,4 +1,3 @@
-// --- src/App.jsx ---
 // This is the root component that defines all the application routes.
 
 import React from 'react';
