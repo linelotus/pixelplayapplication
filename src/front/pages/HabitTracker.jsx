@@ -174,8 +174,8 @@ const HabitTracker = () => {
       alert('🎉 Correct! You know your nutrition facts!');
       enableTaskCompletion(routineId);
     } else {
-      alert('Good try! You learned something new!');
-      setTimeout(() => enableTaskCompletion(routineId), 1000);
+      alert('Not quite, try again!');
+    //   setTimeout(() => enableTaskCompletion(routineId), 1000);
     }
   };
 
