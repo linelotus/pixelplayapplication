@@ -1,7 +1,7 @@
+import React from "react";
 import { Link } from "react-router-dom";
 
 export const Navbar = () => {
-
 	return (
 		<nav className="navbar navbar-light bg-light">
 			<div className="container">
@@ -11,6 +11,9 @@ export const Navbar = () => {
 				<div className="ml-auto">
 					<Link to="/demo">
 						<button className="btn btn-primary">Check the Context in action</button>
+					</Link>
+					<Link to="/avatars">
+						<button className="btn btn-success ms-2">🎮 Avatar Demo</button>
 					</Link>
 				</div>
 			</div>

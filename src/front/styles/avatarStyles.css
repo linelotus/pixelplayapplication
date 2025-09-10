@@ -1,0 +1,147 @@
+/* Avatar Styles - Makes the avatars look cool and game-like */
+
+/* Import a fun pixel-style font from Google */
+@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P:wght@400&display=swap");
+
+/* The pixel font class */
+.pixel-font {
+  font-family: "Press Start 2P", cursive;
+}
+
+/* Container that holds each avatar */
+.avatar-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* The border around each avatar - makes it look like a game card */
+.avatar-border {
+  border: 3px solid #000;
+  border-radius: 10px;
+  box-shadow: 4px 4px 0px #333;
+  overflow: hidden;
+  background: white;
+  transition: all 0.2s ease;
+}
+
+/* When you hover over an avatar, it gets bigger */
+.avatar-border:hover {
+  transform: scale(1.05);
+  box-shadow: 6px 6px 0px #333;
+}
+
+/* Makes the cursor change when avatar is clickable */
+.avatar-clickable {
+  cursor: pointer;
+}
+
+/* The level number badge in the corner */
+.level-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: linear-gradient(45deg, #ffd700, #ffed4e);
+  color: #000;
+  border: 2px solid #000;
+  border-radius: 50%;
+  min-width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+  box-shadow: 2px 2px 0px #333;
+  animation: levelPulse 2s infinite;
+}
+
+/* Makes the level badge pulse (grow and shrink) */
+@keyframes levelPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* Special glow effect for achievements */
+.achievement-glow {
+  animation: achievementGlow 2s ease-in-out infinite alternate;
+}
+
+/* The glowing animation */
+@keyframes achievementGlow {
+  from {
+    box-shadow: 4px 4px 0px #333, 0 0 10px #ffd700;
+  }
+  to {
+    box-shadow: 4px 4px 0px #333, 0 0 20px #ffd700, 0 0 30px #ffd700;
+  }
+}
+
+/* Loading animation - shimmering effect */
+.loading-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* The shimmer effect */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Small button to customize avatar */
+.customize-btn {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  background: #007bff;
+  color: white;
+  border: 1px solid #000;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+/* Customize button when you hover over it */
+.customize-btn:hover {
+  background: #0056b3;
+}
+
+/* Error state when avatar fails to load */
+.avatar-error {
+  background: #f8f9fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  font-size: 24px;
+}
+
+/* Badge for newly unlocked styles */
+.style-unlock-badge {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  background: #28a745;
+  color: white;
+  border: 1px solid #000;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 8px;
+  font-weight: bold;
+}
