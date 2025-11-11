@@ -1,511 +1,1976 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { getUserData } from '../utils/auth';
+import { useTTS } from '../hooks/useTTS';
+import VoiceSelector from '../components/VoiceSelector';
+import axios from 'axios';
 import {
     Play,
+    Pause,
+    RotateCcw,
     Star,
     Trophy,
     Heart,
     Zap,
     Users,
-    Camera,
-    Music,
     Target,
     Timer,
-    Award,
-    Map,
-    Book,
-    Gamepad2,
-    Sparkles,
-    Crown,
-    Gift,
     Lock,
     CheckCircle,
-    Clock,
-    Filter,
-    Search
+    Search,
+    ArrowLeft,
+    Volume2,
+    VolumeX,
+    Filter
 } from 'lucide-react';
 
-const GameHub = () => {
+// ===================================
+// 🎵 GAME MUSIC CONFIGURATION
+// ===================================
+const GAME_MUSIC = {
+    'dance': '/Audio/upbeat-dance.mp3',
+    'ninja': '/Audio/action-theme.mp3',
+    'yoga': '/Audio/calm-ambient.mp3',
+    'rhythm': '/Audio/electronic-beat.mp3',
+    'lightning-ladders': '/Audio/energetic-workout.mp3',
+    'shadow-punch': '/Audio/combat-music.mp3',
+    'adventure': '/Audio/adventure-theme.mp3',
+    'superhero': '/Audio/heroic-theme.mp3',
+    'magic': '/Audio/mystical-ambient.mp3',
+    'sports': '/Audio/sports-theme.mp3',
+    'memory-match': '/Audio/memory-theme.mp3',
+    'sequence-memory': '/Audio/brain-theme.mp3'
+};
+
+// ===================================
+// 🌐 API CONFIGURATION
+// ===================================
+const API_BASE_URL = 'http://localhost:5000'; // Change to your backend URL
+
+const PixelPlayGameHub = () => {
+    // ===================================
+    // 📊 STATE MANAGEMENT
+    // ===================================
+
+    // Game state
+    const [selectedGame, setSelectedGame] = useState(null);
+    const [gameState, setGameState] = useState('menu');
+    const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
+    const [timeRemaining, setTimeRemaining] = useState(0);
+    const [score, setScore] = useState(0);
+    const [streakCount, setStreakCount] = useState(0);
+
+    // Memory game state
+    const [memoryCards, setMemoryCards] = useState([]);
+    const [flippedCards, setFlippedCards] = useState([]);
+    const [matchedCards, setMatchedCards] = useState([]);
+    const [memoryMoves, setMemoryMoves] = useState(0);
+    const [memoryTimer, setMemoryTimer] = useState(0);
+
+    // Sequence game state
+    const [sequence, setSequence] = useState([]);
+    const [playerSequence, setPlayerSequence] = useState([]);
+    const [isPlayerTurn, setIsPlayerTurn] = useState(false);
+    const [activeButton, setActiveButton] = useState(null);
+    const [sequenceLevel, setSequenceLevel] = useState(1);
+    const [sequenceMessage, setSequenceMessage] = useState('Click START to begin!');
+
+    // UI state
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [selectedDifficulty, setSelectedDifficulty] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
-    const [user, setUser] = useState({
-        level: 5,
-        xp: 850,
-        unlockedGames: ['dance', 'ninja', 'yoga', 'adventure', 'sports', 'superhero'],
-        completedGames: ['dance', 'yoga'],
-        favoriteGames: ['dance', 'ninja']
-    });
+    const [audioEnabled, setAudioEnabled] = useState(true);
+    const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
-    // All available games in PixelPlay
+    // User state
+    const [user, setUser] = useState(null);
+    const [userStats, setUserStats] = useState({
+        level: 1,
+        xp: 0,
+        coins: 0,
+        totalGamesPlayed: 0,
+        weeklyStreak: 0,
+        unlockedGames: ['dance', 'yoga', 'memory-match'], // Default unlocked games
+        completedGames: [],
+        favoriteGames: []
+    });
+    const [loading, setLoading] = useState(true);
+
+    // Refs
+    const currentAudioRef = useRef(null);
+    const audioContextRef = useRef(null);
+
+    // TTS Hook
+    const {
+        speak,
+        stopSpeaking,
+        voiceEnabled,
+        setVoiceEnabled,
+        availableVoices,
+        selectedVoice,
+        setSelectedVoice,
+        getKidFriendlyVoices,
+        isLoading: voicesLoading
+    } = useTTS();
+
+    // ===================================
+    // 🎮 ALL 12 GAME DATA
+    // ===================================
     const games = [
         {
             id: 'dance',
             name: 'Dance Party',
             emoji: '💃',
+            gameType: 'exercise',
             description: 'Dance to fun music and copy the moves! Perfect for getting your groove on.',
             category: 'cardio',
             difficulty: 'Easy',
             duration: '5-10 min',
             xpReward: 50,
             energyRequired: 20,
-            color: 'from-pink-400 to-purple-500',
             unlockLevel: 1,
-            instructions: 'Follow the dancing character on screen and copy their moves!',
-            features: ['Music rhythm', 'Dance moves', 'Fun choreography'],
-            playerCount: '1-4 players'
+            playerCount: '1-4 players',
+            exercises: [
+                { name: 'Warm-up Dance', duration: 45, instruction: 'Start with gentle dance moves!' },
+                { name: 'Groove Time', duration: 60, instruction: 'Find your rhythm and groove!' },
+                { name: 'Spin Moves', duration: 40, instruction: 'Add some spins to your dance!' },
+                { name: 'Jump Dance', duration: 50, instruction: 'Jump to the beat!' },
+                { name: 'Freestyle', duration: 60, instruction: 'Dance however you want!' },
+                { name: 'Cool Down', duration: 45, instruction: 'Slow dance to cool down!' }
+            ],
+            hasMusic: true,
+            safetyFeatures: ['warm-up', 'cool-down', 'hydration-reminders']
         },
         {
             id: 'ninja',
             name: 'Ninja Training',
             emoji: '🥷',
+            gameType: 'exercise',
             description: 'Jump, duck, and punch like a ninja! Master the ancient arts of fitness.',
             category: 'strength',
             difficulty: 'Medium',
             duration: '8-12 min',
             xpReward: 75,
             energyRequired: 30,
-            color: 'from-gray-600 to-blue-600',
             unlockLevel: 3,
-            instructions: 'Do ninja moves when you see the symbols: Jump for ⬆️, Duck for ⬇️, Punch for 👊',
-            features: ['Reaction training', 'Combat moves', 'Stealth exercises'],
-            playerCount: '1-2 players'
+            playerCount: '1-2 players',
+            exercises: [
+                { name: 'Ninja Preparation', duration: 10, instruction: 'Prepare your ninja stance!' },
+                { name: 'Jump Training', duration: 40, instruction: 'Practice high ninja jumps!' },
+                { name: 'Duck Training', duration: 50, instruction: 'Master the art of ducking!' },
+                { name: 'Punch Power', duration: 60, instruction: 'Develop ninja punch strength!' },
+                { name: 'Combo Moves', duration: 70, instruction: 'Combine jump, duck, and punch!' },
+                { name: 'Speed Challenge', duration: 60, instruction: 'Fast ninja movements!' },
+                { name: 'Stealth Mode', duration: 25, instruction: 'Silent ninja techniques!' },
+                { name: 'Advanced Combat', duration: 80, instruction: 'Master ninja warrior moves!' },
+                { name: 'Meditation Cool Down', duration: 60, instruction: 'Find your inner ninja peace!' }
+            ],
+            hasMusic: true,
+            safetyFeatures: ['form-guidance', 'rest-periods']
         },
         {
             id: 'yoga',
             name: 'Animal Yoga',
             emoji: '🧘',
+            gameType: 'exercise',
             description: 'Stretch like different animals! Calm your mind and strengthen your body.',
             category: 'flexibility',
             difficulty: 'Easy',
             duration: '10-15 min',
             xpReward: 60,
             energyRequired: 15,
-            color: 'from-green-400 to-teal-500',
             unlockLevel: 1,
-            instructions: 'Copy the animal poses: Cat stretch, Dog pose, Frog jumps!',
-            features: ['Animal poses', 'Breathing exercises', 'Mindfulness'],
-            playerCount: '1+ players'
+            playerCount: '1+ players',
+            exercises: [
+                { name: 'Mountain Pose', duration: 30, instruction: 'Stand tall like a mountain!' },
+                { name: 'Cat Stretch', duration: 45, instruction: 'Arch your back like a cat!' },
+                { name: 'Downward Dog', duration: 50, instruction: 'Stretch like a happy dog!' },
+                { name: 'Cobra Pose', duration: 50, instruction: 'Rise up like a cobra!' },
+                { name: 'Frog Jumps', duration: 40, instruction: 'Hop like a playful frog!' },
+                { name: 'Eagle Balance', duration: 60, instruction: 'Balance with eagle focus!' },
+                { name: 'Child Pose Rest', duration: 45, instruction: 'Rest like a sleepy child!' },
+                { name: 'Tree Pose', duration: 35, instruction: 'Stand strong like a tree!' },
+                { name: 'Butterfly Stretch', duration: 60, instruction: 'Flutter like a butterfly!' },
+                { name: 'Final Relaxation', duration: 55, instruction: 'Deep relaxation and breathing!' }
+            ],
+            hasMusic: true,
+            safetyFeatures: ['breathing-guidance', 'relaxation-focus']
+        },
+        {
+            id: 'rhythm',
+            name: 'Rhythm Master',
+            emoji: '🎵',
+            gameType: 'exercise',
+            description: 'Move to the beat! Follow the rhythm and hit every move perfectly.',
+            category: 'cardio',
+            difficulty: 'Medium',
+            duration: '6-10 min',
+            xpReward: 65,
+            energyRequired: 25,
+            unlockLevel: 4,
+            playerCount: '1-2 players',
+            exercises: [
+                { name: 'Beat Basics', duration: 40, instruction: 'Feel the rhythm in your body!' },
+                { name: 'Step to the Beat', duration: 50, instruction: 'Step on every beat!' },
+                { name: 'Clap and Move', duration: 45, instruction: 'Clap and move together!' },
+                { name: 'Speed Rhythm', duration: 60, instruction: 'Keep up with the fast beat!' },
+                { name: 'Freestyle Flow', duration: 55, instruction: 'Create your own rhythm!' },
+                { name: 'Cool Down Sway', duration: 35, instruction: 'Slow sway to cool down!' }
+            ],
+            hasMusic: true,
+            safetyFeatures: ['rhythm-guidance', 'pace-control']
+        },
+        {
+            id: 'lightning-ladders',
+            name: 'Lightning Ladders',
+            emoji: '⚡',
+            gameType: 'exercise',
+            description: 'Super fast footwork! Train your agility and speed with lightning-quick movements.',
+            category: 'agility',
+            difficulty: 'Hard',
+            duration: '8-12 min',
+            xpReward: 90,
+            energyRequired: 35,
+            unlockLevel: 6,
+            playerCount: '1 player',
+            exercises: [
+                { name: 'Ladder Warmup', duration: 30, instruction: 'Prepare your feet!' },
+                { name: 'Quick Steps', duration: 50, instruction: 'Fast feet through the ladder!' },
+                { name: 'Side Shuffle', duration: 55, instruction: 'Shuffle side to side!' },
+                { name: 'In-Out Drill', duration: 60, instruction: 'Jump in and out quickly!' },
+                { name: 'Crossover Steps', duration: 65, instruction: 'Cross your feet through!' },
+                { name: 'Sprint Finish', duration: 45, instruction: 'Give it all you got!' },
+                { name: 'Recovery Walk', duration: 40, instruction: 'Walk it out slowly!' }
+            ],
+            hasMusic: true,
+            safetyFeatures: ['proper-warmup', 'recovery-periods']
+        },
+        {
+            id: 'shadow-punch',
+            name: 'Shadow Boxing',
+            emoji: '🥊',
+            gameType: 'exercise',
+            description: 'Box like a champion! Practice your jabs, hooks, and uppercuts.',
+            category: 'strength',
+            difficulty: 'Hard',
+            duration: '10-15 min',
+            xpReward: 85,
+            energyRequired: 40,
+            unlockLevel: 7,
+            playerCount: '1 player',
+            exercises: [
+                { name: 'Stance Training', duration: 30, instruction: 'Get into boxing stance!' },
+                { name: 'Jab Practice', duration: 50, instruction: 'Perfect your jab!' },
+                { name: 'Hook Combos', duration: 60, instruction: 'Throw powerful hooks!' },
+                { name: 'Uppercut Power', duration: 55, instruction: 'Uppercut with force!' },
+                { name: 'Speed Combinations', duration: 70, instruction: 'Fast combo punches!' },
+                { name: 'Defense Moves', duration: 50, instruction: 'Duck and weave!' },
+                { name: 'Final Round', duration: 60, instruction: 'Give it your all!' },
+                { name: 'Cool Down', duration: 40, instruction: 'Slow movements to cool!' }
+            ],
+            hasMusic: true,
+            safetyFeatures: ['proper-form', 'controlled-movement']
         },
         {
             id: 'adventure',
-            name: 'Quest Adventure',
+            name: 'Adventure Quest',
             emoji: '🗺️',
-            description: 'Go on epic fitness quests! Explore magical worlds through exercise.',
-            category: 'adventure',
+            gameType: 'exercise',
+            description: 'Go on an epic adventure! Climb mountains, cross rivers, and explore!',
+            category: 'cardio',
             difficulty: 'Medium',
-            duration: '15-20 min',
-            xpReward: 100,
-            energyRequired: 40,
-            color: 'from-orange-400 to-red-500',
-            unlockLevel: 4,
-            instructions: 'Complete physical challenges to progress through the adventure map!',
-            features: ['Story mode', 'Multiple levels', 'Treasure rewards'],
-            playerCount: '1-6 players'
-        },
-        {
-            id: 'sports',
-            name: 'Mini Sports',
-            emoji: '⚽',
-            description: 'Play soccer, basketball, and more! Compete in fun mini sporting events.',
-            category: 'sports',
-            difficulty: 'Medium',
-            duration: '8-15 min',
-            xpReward: 80,
-            energyRequired: 35,
-            color: 'from-blue-400 to-green-500',
-            unlockLevel: 2,
-            instructions: 'Use your whole body to play different sports games!',
-            features: ['Multiple sports', 'Team play', 'Tournaments'],
-            playerCount: '2-8 players'
+            duration: '7-12 min',
+            xpReward: 70,
+            energyRequired: 28,
+            unlockLevel: 5,
+            playerCount: '1-4 players',
+            exercises: [
+                { name: 'Journey Start', duration: 30, instruction: 'Begin your adventure!' },
+                { name: 'Mountain Climb', duration: 60, instruction: 'Climb the tall mountain!' },
+                { name: 'River Jump', duration: 50, instruction: 'Jump across the river!' },
+                { name: 'Forest Run', duration: 65, instruction: 'Run through the forest!' },
+                { name: 'Cave Crawl', duration: 45, instruction: 'Crawl through the cave!' },
+                { name: 'Victory Dance', duration: 40, instruction: 'Celebrate your success!' }
+            ],
+            hasMusic: true,
+            safetyFeatures: ['imaginative-play', 'safety-reminders']
         },
         {
             id: 'superhero',
             name: 'Superhero Training',
             emoji: '🦸',
-            description: 'Train like your favorite superheroes! Develop super strength and speed.',
+            gameType: 'exercise',
+            description: 'Train like a superhero! Build super strength and super speed!',
             category: 'strength',
-            difficulty: 'Hard',
-            duration: '12-18 min',
-            xpReward: 120,
-            energyRequired: 50,
-            color: 'from-red-500 to-yellow-500',
-            unlockLevel: 6,
-            instructions: 'Complete superhero training exercises to unlock your powers!',
-            features: ['Hero workouts', 'Power challenges', 'Cape physics'],
-            playerCount: '1-4 players'
-        },
-        {
-            id: 'space',
-            name: 'Space Explorer',
-            emoji: '🚀',
-            description: 'Exercise like an astronaut in space! Zero gravity workouts await.',
-            category: 'cardio',
             difficulty: 'Medium',
-            duration: '10-15 min',
-            xpReward: 90,
-            energyRequired: 30,
-            color: 'from-purple-600 to-blue-800',
-            unlockLevel: 8,
-            instructions: 'Move like you\'re floating in space while doing astronaut exercises!',
-            features: ['Zero gravity sim', 'Space missions', 'Planet exploration'],
-            playerCount: '1-6 players'
-        },
-        {
-            id: 'pirate',
-            name: 'Pirate Adventure',
-            emoji: '🏴‍☠️',
-            description: 'Sail the seven seas and find treasure through swashbuckling workouts!',
-            category: 'adventure',
-            difficulty: 'Hard',
-            duration: '15-25 min',
-            xpReward: 150,
-            energyRequired: 45,
-            color: 'from-amber-600 to-orange-700',
-            unlockLevel: 10,
-            instructions: 'Complete pirate challenges to find buried treasure!',
-            features: ['Ship battles', 'Treasure hunting', 'Sword fighting'],
-            playerCount: '2-8 players'
+            duration: '8-12 min',
+            xpReward: 80,
+            energyRequired: 32,
+            unlockLevel: 5,
+            playerCount: '1-3 players',
+            exercises: [
+                { name: 'Hero Warmup', duration: 35, instruction: 'Wake up your superpowers!' },
+                { name: 'Super Jumps', duration: 50, instruction: 'Jump like you can fly!' },
+                { name: 'Power Punches', duration: 55, instruction: 'Punch with super strength!' },
+                { name: 'Speed Running', duration: 60, instruction: 'Run at super speed!' },
+                { name: 'Hero Poses', duration: 45, instruction: 'Strike a superhero pose!' },
+                { name: 'Save the Day', duration: 50, instruction: 'Complete your mission!' },
+                { name: 'Hero Rest', duration: 40, instruction: 'Rest like a hero!' }
+            ],
+            hasMusic: true,
+            safetyFeatures: ['age-appropriate', 'fun-focused']
         },
         {
             id: 'magic',
-            name: 'Magic Academy',
-            emoji: '🪄',
-            description: 'Learn magical spells through movement! Cast fitness spells and brew potions.',
+            name: 'Magic Spells',
+            emoji: '🔮',
+            gameType: 'exercise',
+            description: 'Cast magical spells with movement! Become a powerful wizard!',
             category: 'flexibility',
             difficulty: 'Easy',
+            duration: '6-10 min',
+            xpReward: 55,
+            energyRequired: 18,
+            unlockLevel: 2,
+            playerCount: '1-4 players',
+            exercises: [
+                { name: 'Wand Warmup', duration: 35, instruction: 'Warm up your magic wand!' },
+                { name: 'Circle Spell', duration: 45, instruction: 'Cast circles in the air!' },
+                { name: 'Flying Spell', duration: 50, instruction: 'Make yourself fly!' },
+                { name: 'Lightning Bolt', duration: 40, instruction: 'Throw lightning bolts!' },
+                { name: 'Shield Spell', duration: 45, instruction: 'Create a magic shield!' },
+                { name: 'Meditation', duration: 50, instruction: 'Meditate to recharge!' }
+            ],
+            hasMusic: true,
+            safetyFeatures: ['creative-movement', 'gentle-exercise']
+        },
+        {
+            id: 'sports',
+            name: 'Sports Mix',
+            emoji: '⚽',
+            gameType: 'exercise',
+            description: 'Try different sports! Soccer, basketball, tennis, and more!',
+            category: 'cardio',
+            difficulty: 'Medium',
             duration: '8-12 min',
             xpReward: 70,
-            energyRequired: 25,
-            color: 'from-violet-500 to-purple-700',
-            unlockLevel: 5,
-            instructions: 'Use gestures and movements to cast magical fitness spells!',
-            features: ['Spell casting', 'Potion brewing', 'Magic duels'],
-            playerCount: '1-4 players'
-        },
-        {
-            id: 'racing',
-            name: 'Turbo Racing',
-            emoji: '🏎️',
-            description: 'Race through obstacle courses! Speed and agility training disguised as fun.',
-            category: 'cardio',
-            difficulty: 'Hard',
-            duration: '6-10 min',
-            xpReward: 85,
-            energyRequired: 40,
-            color: 'from-red-400 to-pink-500',
-            unlockLevel: 7,
-            instructions: 'Run, jump, and dodge obstacles to win the race!',
-            features: ['Racing circuits', 'Time trials', 'Speed boosts'],
-            playerCount: '2-8 players'
-        },
-        {
-            id: 'detective',
-            name: 'Fitness Detective',
-            emoji: '🕵️',
-            description: 'Solve mysteries through physical clues! Exercise your body and brain.',
-            category: 'mixed',
-            difficulty: 'Medium',
-            duration: '12-20 min',
-            xpReward: 95,
-            energyRequired: 35,
-            color: 'from-gray-500 to-blue-600',
-            unlockLevel: 9,
-            instructions: 'Solve physical puzzles and follow exercise clues to crack the case!',
-            features: ['Mystery solving', 'Physical puzzles', 'Detective tools'],
-            playerCount: '1-6 players'
-        },
-        {
-            id: 'rhythm',
-            name: 'Rhythm Master',
-            emoji: '🥁',
-            description: 'Create beats with your body! Musical fitness that gets your heart pumping.',
-            category: 'cardio',
-            difficulty: 'Medium',
-            duration: '5-12 min',
-            xpReward: 75,
             energyRequired: 30,
-            color: 'from-cyan-400 to-blue-500',
             unlockLevel: 4,
-            instructions: 'Use your body to create rhythm and beats in time with the music!',
-            features: ['Beat creation', 'Musical timing', 'Rhythm challenges'],
-            playerCount: '1-8 players'
+            playerCount: '1-4 players',
+            exercises: [
+                { name: 'Sports Warmup', duration: 30, instruction: 'Get ready to play!' },
+                { name: 'Soccer Kicks', duration: 50, instruction: 'Kick the soccer ball!' },
+                { name: 'Basketball Shots', duration: 55, instruction: 'Shoot some hoops!' },
+                { name: 'Tennis Swings', duration: 50, instruction: 'Swing like a tennis pro!' },
+                { name: 'Baseball Hits', duration: 45, instruction: 'Hit a home run!' },
+                { name: 'Victory Lap', duration: 40, instruction: 'Take a victory lap!' }
+            ],
+            hasMusic: true,
+            safetyFeatures: ['sport-safety', 'equipment-free']
+        },
+        {
+            id: 'memory-match',
+            name: 'Fitness Match Pairs',
+            emoji: '🎴',
+            gameType: 'memory',
+            description: 'Flip cards to find matching pairs of fitness items! Test your visual memory.',
+            category: 'brain',
+            difficulty: 'Easy',
+            duration: '3-7 min',
+            xpReward: 30,
+            energyRequired: 5,
+            unlockLevel: 1,
+            playerCount: '1 player',
+            hasMusic: true
+        },
+        {
+            id: 'sequence-memory',
+            name: 'Exercise Sequence',
+            emoji: '🧠',
+            gameType: 'sequence',
+            description: 'Watch exercises light up, then repeat the pattern! Challenge your memory',
+            category: 'brain',
+            difficulty: 'Medium',
+            duration: '2-10 min',
+            xpReward: 25,
+            energyRequired: 5,
+            unlockLevel: 2,
+            playerCount: '1 player',
+            hasMusic: true
         }
     ];
 
-    const categories = [
-        { id: 'all', name: 'All Games', icon: Gamepad2, color: 'bg-purple-500' },
-        { id: 'cardio', name: 'Cardio Fun', icon: Heart, color: 'bg-red-500' },
-        { id: 'strength', name: 'Get Strong', icon: Zap, color: 'bg-yellow-500' },
-        { id: 'flexibility', name: 'Stretch Time', icon: Sparkles, color: 'bg-green-500' },
-        { id: 'sports', name: 'Sports Zone', icon: Trophy, color: 'bg-blue-500' },
-        { id: 'adventure', name: 'Adventures', icon: Map, color: 'bg-orange-500' },
-        { id: 'mixed', name: 'Mix It Up', icon: Target, color: 'bg-pink-500' }
-    ];
-
-    const difficulties = [
-        { id: 'all', name: 'All Levels', color: 'bg-gray-500' },
-        { id: 'Easy', name: 'Easy Peasy', color: 'bg-green-400' },
-        { id: 'Medium', name: 'Just Right', color: 'bg-yellow-400' },
-        { id: 'Hard', name: 'Challenge Me!', color: 'bg-red-400' }
-    ];
-
-    // Filter games based on selected criteria
-    const filteredGames = games.filter(game => {
-        const matchesCategory = selectedCategory === 'all' || game.category === selectedCategory;
-        const matchesDifficulty = selectedDifficulty === 'all' || game.difficulty === selectedDifficulty;
-        const matchesSearch = game.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            game.description.toLowerCase().includes(searchTerm.toLowerCase());
-        return matchesCategory && matchesDifficulty && matchesSearch;
-    });
-
-    const isGameUnlocked = (game) => user.level >= game.unlockLevel;
-    const isGameCompleted = (game) => user.completedGames.includes(game.id);
-    const isGameFavorite = (game) => user.favoriteGames.includes(game.id);
-
-    const handlePlayGame = (gameId) => {
-        console.log(`Starting game: ${gameId}`);
-        // Here you would navigate to the actual game or start the game session
+    // ===================================
+    // 🔓 HELPER: Check if game is unlocked
+    // ===================================
+    const isGameUnlocked = (game) => {
+        return userStats.level >= game.unlockLevel;
     };
 
-    const GameCard = ({ game }) => {
-        const unlocked = isGameUnlocked(game);
-        const completed = isGameCompleted(game);
-        const favorite = isGameFavorite(game);
+    // ===================================
+    // 🎯 FILTERING LOGIC
+    // ===================================
+    const getFilteredGames = () => {
+        let filtered = games;
+
+        // Filter by search term
+        if (searchTerm.trim()) {
+            filtered = filtered.filter(game =>
+                game.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                game.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                game.category.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+
+        // Filter by category
+        if (selectedCategory !== 'all') {
+            filtered = filtered.filter(game => game.category === selectedCategory);
+        }
+
+        // Filter by difficulty
+        if (selectedDifficulty !== 'all') {
+            filtered = filtered.filter(game => game.difficulty === selectedDifficulty);
+        }
+
+        return filtered;
+    };
+
+    // Get unique categories and difficulties for filters
+    const categories = ['all', ...new Set(games.map(g => g.category))];
+    const difficulties = ['all', 'Easy', 'Medium', 'Hard'];
+
+    // ===================================
+    // 🎵 AUDIO MANAGEMENT
+    // ===================================
+
+    const playGameMusic = useCallback((gameId) => {
+        if (!audioEnabled) return;
+
+        const musicPath = GAME_MUSIC[gameId];
+        if (!musicPath) return;
+
+        try {
+            stopCurrentAudio();
+            const audio = new Audio(musicPath);
+            audio.loop = true;
+            audio.volume = 0.3;
+
+            audio.play().catch(err => {
+                console.log('Music autoplay blocked:', err);
+            });
+
+            currentAudioRef.current = audio;
+        } catch (error) {
+            console.error('Error playing music:', error);
+        }
+    }, [audioEnabled]);
+
+    const stopCurrentAudio = useCallback(() => {
+        if (currentAudioRef.current) {
+            currentAudioRef.current.pause();
+            currentAudioRef.current.currentTime = 0;
+            currentAudioRef.current = null;
+        }
+    }, []);
+
+    // ===================================
+    // 🌐 BACKEND API FUNCTIONS
+    // ===================================
+
+    /**
+     * 🎯 Record game completion to backend
+     * This automatically updates ALL stats!
+     */
+    const recordGameCompletion = useCallback(async (gameData) => {
+        try {
+            const token = localStorage.getItem('token');
+
+            if (!token) {
+                console.warn('⚠️ No auth token - saving locally only');
+
+                // Save locally even without backend
+                const localStats = {
+                    ...userStats,
+                    xp: userStats.xp + gameData.baseXP,
+                    coins: userStats.coins + 10,
+                    totalGamesPlayed: userStats.totalGamesPlayed + 1
+                };
+
+                // Calculate new level
+                localStats.level = Math.floor(localStats.xp / 100) + 1;
+
+                setUserStats(localStats);
+                localStorage.setItem('pixelplay_user_stats', JSON.stringify(localStats));
+
+                return null;
+            }
+
+            console.log('📤 Sending game data to backend:', gameData);
+
+            const response = await axios.post(
+                `${API_BASE_URL}/api/games/complete-session`,
+                {
+                    game_id: gameData.gameId,
+                    score: gameData.score,
+                    duration_minutes: gameData.durationMinutes,
+                    completed: gameData.completed,
+                    base_xp: gameData.baseXP
+                },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            console.log('✅ Backend response:', response.data);
+
+            // Update local state with backend response
+            if (response.data.success && response.data.user_stats) {
+                const stats = response.data.user_stats;
+                const updatedStats = {
+                    level: stats.level,
+                    xp: stats.xp,
+                    coins: stats.coins || userStats.coins,
+                    weeklyStreak: stats.streak_days,
+                    totalGamesPlayed: userStats.totalGamesPlayed + 1,
+                    unlockedGames: userStats.unlockedGames,
+                    completedGames: userStats.completedGames,
+                    favoriteGames: userStats.favoriteGames
+                };
+
+                setUserStats(updatedStats);
+
+                // Save to localStorage as backup
+                localStorage.setItem('pixelplay_user_stats', JSON.stringify(updatedStats));
+
+                // Check for level up
+                if (response.data.session?.leveled_up) {
+                    const newLevel = response.data.session.new_level;
+                    const coinsEarned = response.data.session.coins_earned;
+                    setTimeout(() => {
+                        alert(`🎉 LEVEL UP!\n\nYou're now Level ${newLevel}!\n+${coinsEarned} coins earned!`);
+                    }, 500);
+                }
+            }
+
+            return response.data;
+        } catch (error) {
+            console.error('❌ Backend error:', error.response?.data || error.message);
+
+            // Fallback: Update locally if backend fails
+            console.warn('⚠️ Backend save failed, updating locally only');
+
+            const localStats = {
+                ...userStats,
+                xp: userStats.xp + gameData.baseXP,
+                coins: userStats.coins + 10,
+                totalGamesPlayed: userStats.totalGamesPlayed + 1
+            };
+
+            // Calculate new level
+            localStats.level = Math.floor(localStats.xp / 100) + 1;
+
+            setUserStats(localStats);
+            localStorage.setItem('pixelplay_user_stats', JSON.stringify(localStats));
+
+            return null;
+        }
+    }, [userStats]);
+
+    /**
+     * 📊 Load user stats from backend on component mount
+     */
+    const loadUserStats = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                console.warn('⚠️ No token found - user not logged in');
+                // Load from localStorage as fallback
+                const savedStats = localStorage.getItem('pixelplay_user_stats');
+                if (savedStats) {
+                    const parsed = JSON.parse(savedStats);
+                    setUserStats(parsed);
+                    console.log('📊 Loaded stats from localStorage:', parsed);
+                }
+                setLoading(false);
+                return;
+            }
+
+            console.log('📡 Loading user stats from backend...');
+            const response = await axios.get(
+                `${API_BASE_URL}/api/dashboard/stats`,
+                {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }
+            );
+
+            if (response.data.success) {
+                const stats = response.data.stats;
+                const loadedStats = {
+                    level: stats.level || 1,
+                    xp: stats.xp || 0,
+                    coins: stats.coins || 0,
+                    totalGamesPlayed: stats.total_games_played || 0,
+                    weeklyStreak: stats.streak_days || 0,
+                    unlockedGames: stats.unlocked_games || ['dance', 'yoga', 'memory-match'],
+                    completedGames: stats.completed_games || [],
+                    favoriteGames: stats.favorite_games || []
+                };
+
+                setUserStats(loadedStats);
+
+                // Also save to localStorage as backup
+                localStorage.setItem('pixelplay_user_stats', JSON.stringify(loadedStats));
+
+                console.log('✅ Stats loaded from backend:', loadedStats);
+            }
+        } catch (error) {
+            console.error('❌ Failed to load stats from backend:', error);
+
+            // Fallback to localStorage
+            const savedStats = localStorage.getItem('pixelplay_user_stats');
+            if (savedStats) {
+                const parsed = JSON.parse(savedStats);
+                setUserStats(parsed);
+                console.log('📊 Loaded stats from localStorage fallback:', parsed);
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    // Load user stats when component mounts
+    useEffect(() => {
+        loadUserStats();
+    }, [loadUserStats]);
+
+    // Save stats to localStorage whenever they change (as backup)
+    useEffect(() => {
+        if (!loading) {
+            localStorage.setItem('pixelplay_user_stats', JSON.stringify(userStats));
+            console.log('💾 Stats auto-saved to localStorage:', userStats);
+        }
+    }, [userStats, loading]);
+
+    // ===================================
+    // 🎮 GAME LOGIC
+    // ===================================
+
+    const startGame = useCallback((game) => {
+        // Check if game is locked
+        if (!isGameUnlocked(game)) {
+            alert(`🔒 This game unlocks at Level ${game.unlockLevel}!\n\nYou're currently Level ${userStats.level}. Keep playing to level up!`);
+            return;
+        }
+
+        setSelectedGame(game);
+        setScore(0);
+        setStreakCount(0);
+
+        if (game.gameType === 'memory') {
+            const emojis = ['🏋️', '🧘', '🏃', '⚽', '🥊', '🏊', '🚴', '🤸'];
+            const shuffled = [...emojis, ...emojis]
+                .sort(() => Math.random() - 0.5)
+                .map((emoji, index) => ({ id: index, emoji, matched: false }));
+            setMemoryCards(shuffled);
+            setFlippedCards([]);
+            setMatchedCards([]);
+            setMemoryMoves(0);
+            setMemoryTimer(0);
+        } else if (game.gameType === 'sequence') {
+            setSequence([]);
+            setPlayerSequence([]);
+            setSequenceLevel(1);
+            setIsPlayerTurn(false);
+            setSequenceMessage('Click START to begin!');
+        } else {
+            setCurrentExerciseIndex(0);
+            const firstExercise = game.exercises[0];
+            setTimeRemaining(firstExercise.duration);
+        }
+
+        setGameState('playing');
+        playGameMusic(game.id);
+
+        if (voiceEnabled) {
+            speak(`Starting ${game.name}! Let's have fun!`);
+        }
+    }, [playGameMusic, voiceEnabled, speak, userStats.level]);
+
+    const pauseGame = () => {
+        setGameState('paused');
+        stopCurrentAudio();
+    };
+
+    const resumeGame = () => {
+        setGameState('playing');
+        if (selectedGame) {
+            playGameMusic(selectedGame.id);
+        }
+    };
+
+    const resetGame = () => {
+        setGameState('menu');
+        setSelectedGame(null);
+        setScore(0);
+        setStreakCount(0);
+        stopCurrentAudio();
+    };
+
+    const completeGame = useCallback(async () => {
+        setGameState('completed');
+        stopCurrentAudio();
+
+        const totalXP = selectedGame.xpReward + (streakCount * 5);
+        const durationMinutes = Math.ceil(selectedGame.exercises?.reduce((sum, ex) => sum + ex.duration, 0) / 60) || 5;
+
+        // Update local stats BEFORE sending to backend
+        const newXP = userStats.xp + totalXP;
+        const newGamesPlayed = userStats.totalGamesPlayed + 1;
+
+        // Calculate new level (every 100 XP = 1 level)
+        const newLevel = Math.floor(newXP / 100) + 1;
+        const leveledUp = newLevel > userStats.level;
+
+        // Update local state immediately for instant feedback
+        setUserStats(prev => ({
+            ...prev,
+            xp: newXP,
+            level: newLevel,
+            totalGamesPlayed: newGamesPlayed,
+            coins: prev.coins + (leveledUp ? 50 : 10) // Bonus coins for level up
+        }));
+
+        // Send to backend (this will sync with server)
+        const backendResult = await recordGameCompletion({
+            gameId: selectedGame.id,
+            score: score,
+            durationMinutes: durationMinutes,
+            completed: true,
+            baseXP: totalXP
+        });
+
+        // If backend returns different stats, use those instead
+        if (backendResult?.user_stats) {
+            setUserStats(prev => ({
+                ...prev,
+                level: backendResult.user_stats.level,
+                xp: backendResult.user_stats.xp,
+                coins: backendResult.user_stats.coins || prev.coins,
+                weeklyStreak: backendResult.user_stats.streak_days
+            }));
+        }
+
+        if (voiceEnabled) {
+            speak(`Amazing work! You earned ${totalXP} experience points!`);
+        }
+    }, [selectedGame, score, streakCount, recordGameCompletion, stopCurrentAudio, voiceEnabled, speak, userStats]);
+
+    // Timer logic for exercise games
+    useEffect(() => {
+        if (gameState !== 'playing' || !selectedGame || selectedGame.gameType !== 'exercise') return;
+
+        const timer = setInterval(() => {
+            setTimeRemaining(prev => {
+                if (prev <= 1) {
+                    const nextIndex = currentExerciseIndex + 1;
+                    if (nextIndex >= selectedGame.exercises.length) {
+                        completeGame();
+                        return 0;
+                    } else {
+                        setCurrentExerciseIndex(nextIndex);
+                        const nextExercise = selectedGame.exercises[nextIndex];
+                        setScore(prev => prev + 10);
+                        setStreakCount(prev => prev + 1);
+
+                        if (voiceEnabled) {
+                            speak(nextExercise.instruction);
+                        }
+
+                        return nextExercise.duration;
+                    }
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [gameState, selectedGame, currentExerciseIndex, completeGame, voiceEnabled, speak]);
+
+    // Memory game timer
+    useEffect(() => {
+        if (gameState !== 'playing' || !selectedGame || selectedGame.gameType !== 'memory') return;
+
+        const timer = setInterval(() => {
+            setMemoryTimer(prev => prev + 1);
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [gameState, selectedGame]);
+
+    // Memory card flip logic
+    const handleCardClick = (card) => {
+        if (flippedCards.length === 2 || flippedCards.includes(card.id) || matchedCards.includes(card.id)) {
+            return;
+        }
+
+        const newFlipped = [...flippedCards, card.id];
+        setFlippedCards(newFlipped);
+
+        if (newFlipped.length === 2) {
+            setMemoryMoves(prev => prev + 1);
+            const [first, second] = newFlipped;
+            const firstCard = memoryCards.find(c => c.id === first);
+            const secondCard = memoryCards.find(c => c.id === second);
+
+            if (firstCard.emoji === secondCard.emoji) {
+                setMatchedCards(prev => [...prev, first, second]);
+                setScore(prev => prev + 10);
+                setFlippedCards([]);
+
+                if (matchedCards.length + 2 === memoryCards.length) {
+                    setTimeout(completeGame, 500);
+                }
+            } else {
+                setTimeout(() => setFlippedCards([]), 1000);
+            }
+        }
+    };
+
+    // Sequence game logic
+    const startSequenceGame = () => {
+        const colors = ['red', 'blue', 'green', 'yellow'];
+        const newColor = colors[Math.floor(Math.random() * colors.length)];
+        setSequence([newColor]);
+        playSequence([newColor]);
+    };
+
+    const playSequence = (seq) => {
+        setIsPlayerTurn(false);
+        setSequenceMessage('Watch the pattern...');
+
+        seq.forEach((color, index) => {
+            setTimeout(() => {
+                setActiveButton(color);
+                setTimeout(() => setActiveButton(null), 300);
+            }, index * 600);
+        });
+
+        setTimeout(() => {
+            setIsPlayerTurn(true);
+            setSequenceMessage('Your turn! Repeat the pattern.');
+        }, seq.length * 600 + 500);
+    };
+
+    const handleSequenceButtonClick = (color) => {
+        if (!isPlayerTurn) return;
+
+        const newPlayerSequence = [...playerSequence, color];
+        setPlayerSequence(newPlayerSequence);
+
+        if (newPlayerSequence[newPlayerSequence.length - 1] !== sequence[newPlayerSequence.length - 1]) {
+            setSequenceMessage('Wrong! Game Over!');
+            setIsPlayerTurn(false);
+            setTimeout(() => {
+                completeGame();
+            }, 1500);
+            return;
+        }
+
+        if (newPlayerSequence.length === sequence.length) {
+            setScore(prev => prev + 10);
+            setSequenceLevel(prev => prev + 1);
+            setPlayerSequence([]);
+
+            const colors = ['red', 'blue', 'green', 'yellow'];
+            const newColor = colors[Math.floor(Math.random() * colors.length)];
+            const newSequence = [...sequence, newColor];
+            setSequence(newSequence);
+
+            setTimeout(() => {
+                setSequenceMessage('Great! Watch the next pattern...');
+                playSequence(newSequence);
+            }, 1000);
+        }
+    };
+
+    // ===================================
+    // 🎨 RENDER: GAME MENU
+    // ===================================
+
+    if (gameState === 'menu') {
+        const filteredGames = getFilteredGames();
 
         return (
-            <div className={`
-        relative group rounded-2xl p-6 transition-all duration-300 hover:scale-105 hover:shadow-2xl
-        ${unlocked
-                    ? `bg-gradient-to-br ${game.color} text-white cursor-pointer`
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }
-      `}>
-                {/* Lock indicator for locked games */}
-                {!unlocked && (
-                    <div className="absolute top-4 right-4 bg-gray-600 text-white p-2 rounded-full">
-                        <Lock className="w-4 h-4" />
+            <div style={{
+                minHeight: '100vh',
+                background: 'linear-gradient(to right top, #fb735f, #ff6871, #ff5f85, #ff599c, #ff58b5, #fa5ec4, #f365d2, #eb6ce0, #df74e4, #d37be6, #c881e7, #bd86e7)',
+                color: 'white',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                padding: '2rem 1rem'
+            }}>
+                <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+                    {/* Header */}
+                    <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                        <h1 style={{
+                            fontSize: '3rem',
+                            fontWeight: '800',
+                            margin: '0 0 0.5rem 0',
+                            textShadow: '2px 2px 4px rgba(0,0,0,0.3)'
+                        }}>🎮 Pixel Play Game Hub</h1>
+                        <p style={{
+                            fontSize: '1.2rem',
+                            opacity: '0.9',
+                            margin: '0 0 1rem 0'
+                        }}>All 12 Amazing Games!</p>
+
+                        {/* User Stats Bar */}
+                        <div style={{
+                            background: 'rgba(208, 79, 204, 0.54)',
+                            borderRadius: '12px',
+                            padding: '1rem',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            gap: '2rem',
+                            flexWrap: 'wrap',
+                            backdropFilter: 'blur(10px)'
+                        }}>
+                            <div><strong>Level:</strong> {userStats.level}</div>
+                            <div><strong>XP:</strong> {userStats.xp}</div>
+                            <div><strong>Coins:</strong> 🪙 {userStats.coins}</div>
+                            <div><strong>Streak:</strong> 🔥 {userStats.weeklyStreak} days</div>
+                        </div>
                     </div>
-                )}
 
-                {/* Favorite indicator */}
-                {favorite && unlocked && (
-                    <div className="absolute top-4 right-4 bg-yellow-400 text-white p-2 rounded-full">
-                        <Star className="w-4 h-4 fill-current" />
+                    {/* Search and Filter Section */}
+                    <div style={{
+                        background: 'rgba(208, 79, 204, 0.54)',
+                        borderRadius: '12px',
+                        padding: '1.5rem',
+                        marginBottom: '2rem',
+                        backdropFilter: 'blur(10px)'
+                    }}>
+                        {/* Search Bar */}
+                        <div style={{ marginBottom: '1rem' }}>
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                background: 'rgba(255, 255, 255, 0.2)',
+                                borderRadius: '8px',
+                                padding: '0.75rem 1rem'
+                            }}>
+                                <Search size={20} style={{ marginRight: '0.5rem', opacity: 0.7 }} />
+                                <input
+                                    type="text"
+                                    placeholder="Search games..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    style={{
+                                        flex: 1,
+                                        background: 'transparent',
+                                        border: 'none',
+                                        outline: 'none',
+                                        color: 'white',
+                                        fontSize: '1rem',
+                                        fontWeight: '500'
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Filters */}
+                        <div style={{
+                            display: 'flex',
+                            gap: '1rem',
+                            flexWrap: 'wrap'
+                        }}>
+                            {/* Category Filter */}
+                            <div style={{ flex: 1, minWidth: '200px' }}>
+                                <label style={{
+                                    display: 'block',
+                                    marginBottom: '0.5rem',
+                                    fontSize: '0.9rem',
+                                    fontWeight: '600'
+                                }}>
+                                    <Filter size={16} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} />
+                                    Category
+                                </label>
+                                <select
+                                    value={selectedCategory}
+                                    onChange={(e) => setSelectedCategory(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        background: 'rgba(255, 255, 255, 0.2)',
+                                        color: 'white',
+                                        fontSize: '1rem',
+                                        fontWeight: '500',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {categories.map(cat => (
+                                        <option key={cat} value={cat} style={{ color: '#333' }}>
+                                            {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Difficulty Filter */}
+                            <div style={{ flex: 1, minWidth: '200px' }}>
+                                <label style={{
+                                    display: 'block',
+                                    marginBottom: '0.5rem',
+                                    fontSize: '0.9rem',
+                                    fontWeight: '600'
+                                }}>
+                                    <Target size={16} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} />
+                                    Difficulty
+                                </label>
+                                <select
+                                    value={selectedDifficulty}
+                                    onChange={(e) => setSelectedDifficulty(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        background: 'rgba(255, 255, 255, 0.2)',
+                                        color: 'white',
+                                        fontSize: '1rem',
+                                        fontWeight: '500',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {difficulties.map(diff => (
+                                        <option key={diff} value={diff} style={{ color: '#333' }}>
+                                            {diff.charAt(0).toUpperCase() + diff.slice(1)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Audio Toggle */}
+                            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                                <button
+                                    onClick={() => setAudioEnabled(!audioEnabled)}
+                                    style={{
+                                        background: audioEnabled ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+                                        border: '2px solid rgba(255, 255, 255, 0.3)',
+                                        color: 'white',
+                                        padding: '0.75rem 1rem',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        fontWeight: '600'
+                                    }}
+                                >
+                                    {audioEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+                                    {audioEnabled ? 'Sound On' : 'Sound Off'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                )}
 
-                {/* Completed indicator */}
-                {completed && (
-                    <div className="absolute top-4 left-4 bg-green-500 text-white p-2 rounded-full">
-                        <CheckCircle className="w-4 h-4" />
-                    </div>
-                )}
-
-                {/* Game emoji icon */}
-                <div className="text-6xl mb-4 text-center">
-                    {game.emoji}
-                </div>
-
-                {/* Game info */}
-                <div className="text-center mb-4">
-                    <h3 className="text-2xl font-bold mb-2">{game.name}</h3>
-                    <p className={`text-sm mb-3 ${unlocked ? 'text-white/90' : 'text-gray-600'}`}>
-                        {game.description}
+                    {/* Results Count */}
+                    <p style={{
+                        textAlign: 'center',
+                        marginBottom: '1rem',
+                        opacity: 0.9
+                    }}>
+                        Showing {filteredGames.length} of {games.length} games
                     </p>
-                </div>
 
-                {/* Game stats */}
-                <div className="space-y-2 mb-4">
-                    <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center space-x-1">
-                            <Timer className="w-4 h-4" />
-                            <span>{game.duration}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                            <Zap className="w-4 h-4" />
-                            <span>{game.xpReward} XP</span>
-                        </div>
+                    {/* Game Cards Grid */}
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                        gap: '1.5rem'
+                    }}>
+                        {filteredGames.map(game => {
+                            const unlocked = isGameUnlocked(game);
+
+                            return (
+                                <div
+                                    key={game.id}
+                                    style={{
+                                        background: unlocked
+                                            ? 'rgba(255, 255, 255, 0.95)'
+                                            : 'rgba(0, 0, 0, 0.3)',
+                                        backdropFilter: 'blur(10px)',
+                                        borderRadius: '16px',
+                                        padding: '1.5rem',
+                                        border: '2px solid rgba(255, 255, 255, 0.2)',
+                                        transition: 'all 0.3s ease',
+                                        cursor: unlocked ? 'pointer' : 'not-allowed',
+                                        opacity: unlocked ? 1 : 0.6,
+                                        position: 'relative',
+                                        overflow: 'hidden',
+                                        color: unlocked ? "#1f2937" : "white",
+                                    }}
+                                    onMouseEnter={e => {
+                                        if (unlocked) {
+                                            e.currentTarget.style.transform = 'translateY(-5px)';
+                                            e.currentTarget.style.boxShadow = '0 10px 30px rgba(0,0,0,0.3)';
+                                        }
+                                    }}
+                                    onMouseLeave={e => {
+                                        if (unlocked) {
+                                            e.currentTarget.style.transform = 'translateY(0)';
+                                            e.currentTarget.style.boxShadow = 'none';
+                                        }
+                                    }}
+                                    onClick={() => unlocked && startGame(game)}
+                                >
+                                    {/* Lock Icon for Locked Games */}
+                                    {!unlocked && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: '1rem',
+                                            right: '1rem',
+                                            background: 'rgba(239, 68, 68, 0.9)',
+                                            borderRadius: '50%',
+                                            padding: '0.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            <Lock size={20} />
+                                        </div>
+                                    )}
+
+                                    {/* Game Emoji */}
+                                    <div style={{
+                                        fontSize: '3rem',
+                                        marginBottom: '1rem',
+                                        textAlign: 'center'
+                                    }}>{game.emoji}</div>
+
+                                    {/* Game Name */}
+                                    <h3 style={{
+                                        margin: '0 0 0.5rem 0',
+                                        fontSize: '1.5rem',
+                                        fontWeight: '700',
+                                        textAlign: 'center'
+                                    }}>{game.name}</h3>
+
+                                    {/* Game Description */}
+                                    <p style={{
+                                        margin: '0 0 1rem 0',
+                                        fontSize: '0.9rem',
+                                        opacity: '0.9',
+                                        textAlign: 'center',
+                                        minHeight: '3rem'
+                                    }}>{game.description}</p>
+
+                                    {/* Game Info Tags */}
+                                    <div style={{
+                                        display: 'flex',
+                                        flexWrap: 'wrap',
+                                        gap: '0.5rem',
+                                        marginBottom: '1rem',
+                                        justifyContent: 'center'
+                                    }}>
+                                        <span style={{
+                                            background: 'rgba(59, 130, 246, 0.3)',
+                                            padding: '0.25rem 0.75rem',
+                                            borderRadius: '12px',
+                                            fontSize: '0.8rem',
+                                            fontWeight: '600',
+                                            border: '1px solid rgba(59, 130, 246, 0.5)'
+                                        }}>
+                                            {game.category}
+                                        </span>
+                                        <span style={{
+                                            background: game.difficulty === 'Easy' ? 'rgba(34, 197, 94, 0.3)' :
+                                                game.difficulty === 'Medium' ? 'rgba(251, 191, 36, 0.3)' :
+                                                    'rgba(239, 68, 68, 0.3)',
+                                            padding: '0.25rem 0.75rem',
+                                            borderRadius: '12px',
+                                            fontSize: '0.8rem',
+                                            fontWeight: '600',
+                                            border: `1px solid ${game.difficulty === 'Easy' ? 'rgba(34, 197, 94, 0.5)' :
+                                                game.difficulty === 'Medium' ? 'rgba(251, 191, 36, 0.5)' :
+                                                    'rgba(239, 68, 68, 0.5)'}`
+                                        }}>
+                                            {game.difficulty}
+                                        </span>
+                                        <span style={{
+                                            background: 'rgba(168, 85, 247, 0.3)',
+                                            padding: '0.25rem 0.75rem',
+                                            borderRadius: '12px',
+                                            fontSize: '0.8rem',
+                                            fontWeight: '600',
+                                            border: '1px solid rgba(168, 85, 247, 0.5)'
+                                        }}>
+                                            ⏱️ {game.duration}
+                                        </span>
+                                    </div>
+
+                                    {/* XP and Level Info */}
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        paddingTop: '1rem',
+                                        borderTop: '1px solid rgba(255, 255, 255, 0.2)'
+                                    }}>
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem'
+                                        }}>
+                                            <Star size={18} style={{ color: '#fbbf24' }} />
+                                            <span style={{ fontWeight: '600' }}>+{game.xpReward} XP</span>
+                                        </div>
+                                        {!unlocked && (
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem',
+                                                fontSize: '0.85rem',
+                                                opacity: 0.9
+                                            }}>
+                                                <Lock size={14} />
+                                                Level {game.unlockLevel}
+                                            </div>
+                                        )}
+                                        {unlocked && (
+                                            <CheckCircle size={18} style={{ color: '#10b981' }} />
+                                        )}
+                                    </div>
+
+                                    {/* Play Button */}
+                                    {unlocked && (
+                                        <button
+                                            style={{
+                                                width: '100%',
+                                                marginTop: '1rem',
+                                                background: 'linear-gradient(135deg, #10b981, #059669)',
+                                                color: 'white',
+                                                border: 'none',
+                                                padding: '0.75rem',
+                                                borderRadius: '8px',
+                                                fontSize: '1rem',
+                                                fontWeight: '600',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '0.5rem',
+                                                transition: 'all 0.2s'
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                                        >
+                                            <Play size={20} />
+                                            Play Now
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
 
-                    <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center space-x-1">
-                            <Target className="w-4 h-4" />
-                            <span>{game.difficulty}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                            <Users className="w-4 h-4" />
-                            <span>{game.playerCount}</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Unlock requirement for locked games */}
-                {!unlocked && (
-                    <div className="text-center text-sm bg-gray-600 text-white p-2 rounded-lg mb-4">
-                        🔒 Unlock at Level {game.unlockLevel}
-                    </div>
-                )}
-
-                {/* Play button */}
-                <button
-                    onClick={() => unlocked && handlePlayGame(game.id)}
-                    disabled={!unlocked}
-                    className={`
-            w-full py-3 px-6 rounded-xl font-bold text-lg transition-all duration-200
-            ${unlocked
-                            ? 'bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm'
-                            : 'bg-gray-400 text-gray-600 cursor-not-allowed'
-                        }
-          `}
-                >
-                    {unlocked ? (
-                        <div className="flex items-center justify-center space-x-2">
-                            <Play className="w-5 h-5" />
-                            <span>Play Now!</span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center justify-center space-x-2">
-                            <Lock className="w-5 h-5" />
-                            <span>Locked</span>
+                    {/* No Results Message */}
+                    {filteredGames.length === 0 && (
+                        <div style={{
+                            textAlign: 'center',
+                            padding: '3rem',
+                            background: 'rgba(255, 255, 255, 0.1)',
+                            borderRadius: '12px'
+                        }}>
+                            <p style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>😢 No games found</p>
+                            <p style={{ opacity: 0.8 }}>Try adjusting your search or filters</p>
                         </div>
                     )}
-                </button>
 
-                {/* Game features preview on hover */}
-                <div className="absolute inset-0 bg-black/80 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-6 flex flex-col justify-center">
-                    <h4 className="text-white font-bold text-lg mb-3">Game Features:</h4>
-                    <ul className="text-white/90 space-y-1">
-                        {game.features.map((feature, index) => (
-                            <li key={index} className="flex items-center space-x-2">
-                                <CheckCircle className="w-4 h-4 text-green-400" />
-                                <span>{feature}</span>
-                            </li>
-                        ))}
-                    </ul>
-                    <div className="mt-4 text-white/80 text-sm">
-                        <p className="font-semibold">How to play:</p>
-                        <p>{game.instructions}</p>
+                    {/* ===================================
+                        🏠 BOTTOM NAVIGATION BUTTONS
+                        =================================== */}
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        gap: '1rem',
+                        marginTop: '3rem',
+                        paddingTop: '2rem',
+                        borderTop: '2px solid rgba(255, 255, 255, 0.2)'
+                    }}>
+                        <button
+                            onClick={() => window.location.href = '/'}
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.95)',
+                                color: '#1f2937',
+                                border: '2px solid rgba(255, 255, 255, 0.4)',
+                                padding: '1rem 2rem',
+                                borderRadius: '12px',
+                                fontSize: '1.1rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                transition: 'all 0.3s ease',
+                                boxShadow: '0 4px 15px rgba(0, 0, 0, 0.15)',
+                                minWidth: '180px',
+                                justifyContent: 'center'
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.transform = 'translateY(-3px)';
+                                e.currentTarget.style.boxShadow = '0 6px 25px rgba(0, 0, 0, 0.25)';
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.15)';
+                            }}
+                        >
+                            🏠 Home
+                        </button>
+
+                        <button
+                            onClick={() => window.location.href = '/dashboard'}
+                            style={{
+                                background: 'linear-gradient(135deg, #8d15a0e3, #ac2fd3ff)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '1rem 2rem',
+                                borderRadius: '12px',
+                                fontSize: '1.1rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                transition: 'all 0.3s ease',
+                                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                                minWidth: '180px',
+                                justifyContent: 'center'
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.transform = 'translateY(-3px)';
+                                e.currentTarget.style.boxShadow = '0 6px 25px rgba(102, 126, 234, 0.6)';
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
+                            }}
+                        >
+                            📊 Dashboard
+                        </button>
                     </div>
                 </div>
             </div>
         );
-    };
+    }
 
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-purple-400 via-pink-500 to-red-500 p-4">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="bg-white rounded-3xl shadow-2xl p-8 mb-8">
-                    <div className="text-center mb-8">
-                        <h1 className="text-5xl font-bold text-gray-800 mb-3 flex items-center justify-center">
-                            <Gamepad2 className="w-12 h-12 mr-4 text-purple-600" />
-                            PixelPlay Game Hub
-                        </h1>
-                        <p className="text-xl text-gray-600">Choose your fitness adventure!</p>
+    // ===================================
+    // 🎨 RENDER: EXERCISE GAME
+    // ===================================
+
+    if (gameState === 'playing' && selectedGame && selectedGame.gameType === 'exercise') {
+        const currentExercise = selectedGame.exercises[currentExerciseIndex];
+        const progress = ((currentExerciseIndex + 1) / selectedGame.exercises.length) * 100;
+
+        return (
+            <div style={{
+                minHeight: '100vh',
+                background: 'linear-gradient(to right top, #fb735f, #ff6871, #ff5f85, #ff599c, #ff58b5, #fa5ec4, #f365d2, #eb6ce0, #df74e4, #d37be6, #c881e7, #bd86e7)',
+                color: 'white',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                padding: '1rem'
+            }}>
+                {/* Top Controls */}
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '2rem',
+                    maxWidth: '800px',
+                    margin: '0 auto 2rem auto'
+                }}>
+                    <button
+                        onClick={resetGame}
+                        style={{
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            border: 'none',
+                            color: 'white',
+                            padding: '0.75rem',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                        }}
+                    >
+                        <ArrowLeft size={20} />
+                        Exit
+                    </button>
+
+                    <button
+                        onClick={gameState === 'paused' ? resumeGame : pauseGame}
+                        style={{
+                            background: gameState === 'paused' ? '#10b981' : '#f59e0b',
+                            border: 'none',
+                            color: 'white',
+                            padding: '0.75rem 1.5rem',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                        }}
+                    >
+                        {gameState === 'paused' ? <Play size={20} /> : <Pause size={20} />}
+                        {gameState === 'paused' ? 'Resume' : 'Pause'}
+                    </button>
+                </div>
+
+                {/* Progress Bar */}
+                <div style={{
+                    maxWidth: '600px',
+                    margin: '0 auto 2rem auto',
+                    background: 'rgba(0, 0, 0, 0.2)',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    height: '12px'
+                }}>
+                    <div style={{
+                        width: `${progress}%`,
+                        height: '100%',
+                        background: '#10b981',
+                        transition: 'width 0.3s ease'
+                    }} />
+                </div>
+
+                {/* Main Content */}
+                <div style={{
+                    maxWidth: '600px',
+                    margin: '0 auto',
+                    textAlign: 'center'
+                }}>
+                    <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>{selectedGame.emoji}</div>
+                    <h2 style={{
+                        fontSize: '2rem',
+                        fontWeight: '700',
+                        margin: '0 0 1rem 0'
+                    }}>{currentExercise?.name || 'Get Ready!'}</h2>
+                    <p style={{
+                        fontSize: '1.2rem',
+                        opacity: '0.9',
+                        margin: '0 0 2rem 0'
+                    }}>{currentExercise?.instruction || 'Prepare for your workout!'}</p>
+
+                    <div style={{
+                        width: '150px',
+                        height: '150px',
+                        border: '6px solid rgba(255, 255, 255, 0.3)',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 2rem auto',
+                        background: 'rgba(255, 255, 255, 0.1)'
+                    }}>
+                        <div style={{
+                            fontSize: '2.5rem',
+                            fontWeight: '800',
+                            color: '#fbbf24'
+                        }}>{timeRemaining}</div>
+                        <div style={{
+                            fontSize: '0.8rem',
+                            opacity: '0.8'
+                        }}>seconds</div>
                     </div>
 
-                    {/* User stats */}
-                    <div className="flex justify-center space-x-8 mb-8">
-                        <div className="bg-purple-100 px-6 py-3 rounded-2xl">
-                            <div className="text-2xl font-bold text-purple-800">Level {user.level}</div>
-                            <div className="text-purple-600">Current Level</div>
-                        </div>
-                        <div className="bg-blue-100 px-6 py-3 rounded-2xl">
-                            <div className="text-2xl font-bold text-blue-800">{user.xp} XP</div>
-                            <div className="text-blue-600">Total Experience</div>
-                        </div>
-                        <div className="bg-green-100 px-6 py-3 rounded-2xl">
-                            <div className="text-2xl font-bold text-green-800">{user.unlockedGames.length}</div>
-                            <div className="text-green-600">Games Unlocked</div>
-                        </div>
-                    </div>
-
-                    {/* Search and filters */}
-                    <div className="space-y-6">
-                        {/* Search bar */}
-                        <div className="relative max-w-md mx-auto">
-                            <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Search for games..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-2xl focus:border-purple-500 focus:outline-none text-lg"
-                            />
-                        </div>
-
-                        {/* Category filters */}
-                        <div>
-                            <h3 className="text-lg font-semibold text-gray-700 mb-3 text-center">Game Categories</h3>
-                            <div className="flex flex-wrap justify-center gap-3">
-                                {categories.map(category => (
-                                    <button
-                                        key={category.id}
-                                        onClick={() => setSelectedCategory(category.id)}
-                                        className={`
-                      px-4 py-2 rounded-2xl font-semibold transition-all duration-200 flex items-center space-x-2
-                      ${selectedCategory === category.id
-                                                ? `${category.color} text-white shadow-lg transform scale-105`
-                                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                            }
-                    `}
-                                    >
-                                        <category.icon className="w-4 h-4" />
-                                        <span>{category.name}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Difficulty filters */}
-                        <div>
-                            <h3 className="text-lg font-semibold text-gray-700 mb-3 text-center">Difficulty Level</h3>
-                            <div className="flex justify-center gap-3">
-                                {difficulties.map(difficulty => (
-                                    <button
-                                        key={difficulty.id}
-                                        onClick={() => setSelectedDifficulty(difficulty.id)}
-                                        className={`
-                      px-6 py-2 rounded-2xl font-semibold transition-all duration-200
-                      ${selectedDifficulty === difficulty.id
-                                                ? `${difficulty.color} text-white shadow-lg transform scale-105`
-                                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                            }
-                    `}
-                                    >
-                                        {difficulty.name}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        gap: '2rem',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        padding: '1rem',
+                        borderRadius: '8px'
+                    }}>
+                        <div style={{ fontWeight: '600' }}>Score: {score}</div>
+                        <div style={{ fontWeight: '600' }}>Streak: {streakCount}</div>
                     </div>
                 </div>
 
-                {/* Games grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                    {filteredGames.map(game => (
-                        <GameCard key={game.id} game={game} />
-                    ))}
-                </div>
-
-                {/* No games found message */}
-                {filteredGames.length === 0 && (
-                    <div className="bg-white rounded-3xl shadow-2xl p-12 text-center">
-                        <Gamepad2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-2xl font-bold text-gray-600 mb-2">No games found!</h3>
-                        <p className="text-gray-500">Try adjusting your search or filters to find more games.</p>
+                {gameState === 'paused' && (
+                    <div style={{
+                        position: 'fixed',
+                        inset: '0',
+                        background: 'rgba(0, 0, 0, 0.8)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 1000
+                    }}>
+                        <div style={{
+                            background: 'rgba(255, 255, 255, 0.95)',
+                            padding: '2rem',
+                            borderRadius: '16px',
+                            textAlign: 'center',
+                            color: '#1F2937'
+                        }}>
+                            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.5rem' }}>Game Paused</h3>
+                            <p style={{ margin: '0 0 1.5rem 0', color: '#6B7280' }}>
+                                Take a breath and resume when ready!
+                            </p>
+                            <button
+                                style={{
+                                    background: '#10b981',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '0.75rem 1.5rem',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontWeight: '600',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    margin: '0 auto'
+                                }}
+                                onClick={resumeGame}
+                            >
+                                <Play size={20} />
+                                Resume
+                            </button>
+                        </div>
                     </div>
                 )}
+            </div>
+        );
+    }
 
-                {/* Footer with motivational message */}
-                <div className="bg-white rounded-3xl shadow-2xl p-8 mt-8 text-center">
-                    <div className="text-4xl mb-4">🎮✨</div>
-                    <h3 className="text-2xl font-bold text-gray-800 mb-2">Keep Playing, Keep Growing!</h3>
-                    <p className="text-gray-600">Every game makes you stronger, faster, and healthier. What adventure will you choose today?</p>
+    // ===================================
+    // 🎨 RENDER: MEMORY GAME
+    // ===================================
+
+    if (gameState === 'playing' && selectedGame && selectedGame.gameType === 'memory') {
+        return (
+            <div style={{
+                minHeight: '100vh',
+                background: 'linear-gradient(to right top, #fb735f, #ff6871, #ff5f85, #ff599c, #ff58b5, #fa5ec4, #f365d2, #eb6ce0, #df74e4, #d37be6, #c881e7, #bd86e7)',
+                color: 'white',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                padding: '2rem 1rem'
+            }}>
+                <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: '2rem'
+                    }}>
+                        <button onClick={resetGame} style={{
+                            background: 'rgba(255, 255, 255, 0.2)',
+                            border: 'none',
+                            color: 'white',
+                            padding: '0.75rem 1.5rem',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontWeight: '600'
+                        }}>
+                            ← Back
+                        </button>
+                        <div style={{ display: 'flex', gap: '2rem', fontSize: '1.1rem' }}>
+                            <div><strong>Moves:</strong> {memoryMoves}</div>
+                            <div><strong>Time:</strong> {memoryTimer}s</div>
+                            <div><strong>Score:</strong> {score}</div>
+                        </div>
+                    </div>
+
+                    <h2 style={{
+                        textAlign: 'center',
+                        fontSize: '2rem',
+                        marginBottom: '2rem'
+                    }}>🧠 Memory Match</h2>
+
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(4, 1fr)',
+                        gap: '1rem'
+                    }}>
+                        {memoryCards.map(card => {
+                            const isFlipped = flippedCards.includes(card.id) || matchedCards.includes(card.id);
+                            const isMatched = matchedCards.includes(card.id);
+
+                            return (
+                                <div
+                                    key={card.id}
+                                    onClick={() => handleCardClick(card)}
+                                    style={{
+                                        aspectRatio: '1',
+                                        background: isFlipped
+                                            ? isMatched
+                                                ? 'linear-gradient(135deg, #10b981, #059669)'
+                                                : 'rgba(255, 255, 255, 0.9)'
+                                            : 'rgba(255, 255, 255, 0.2)',
+                                        borderRadius: '12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '2.5rem',
+                                        cursor: isFlipped ? 'default' : 'pointer',
+                                        transition: 'all 0.3s',
+                                        transform: isFlipped ? 'rotateY(0deg)' : 'rotateY(180deg)',
+                                        border: '3px solid rgba(255, 255, 255, 0.3)'
+                                    }}
+                                >
+                                    {isFlipped ? card.emoji : '?'}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
-        </div>
-    );
+        );
+    }
+
+    // ===================================
+    // 🎨 RENDER: SEQUENCE GAME
+    // ===================================
+
+    if (gameState === 'playing' && selectedGame && selectedGame.gameType === 'sequence') {
+        const colors = {
+            red: '#ef4444',
+            blue: '#3b82f6',
+            green: '#10b981',
+            yellow: '#fbbf24'
+        };
+
+        return (
+            <div style={{
+                minHeight: '100vh',
+                background: 'linear-gradient(to right top, #fb735f, #ff6871, #ff5f85, #ff599c, #ff58b5, #fa5ec4, #f365d2, #eb6ce0, #df74e4, #d37be6, #c881e7, #bd86e7)',
+                color: 'white',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                padding: '2rem 1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+            }}>
+                <div style={{ textAlign: 'center' }}>
+                    <button onClick={resetGame} style={{
+                        position: 'absolute',
+                        top: '2rem',
+                        left: '2rem',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: 'none',
+                        color: 'white',
+                        padding: '0.75rem 1.5rem',
+                        borderRadius: '8px',
+                        cursor: 'pointer'
+                    }}>
+                        ← Back
+                    </button>
+
+                    <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎯 Sequence Memory</h2>
+                    <div style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Level {sequenceLevel}</div>
+                    <div style={{ fontSize: '1rem', opacity: '0.8', marginBottom: '2rem' }}>{sequenceMessage}</div>
+
+                    {sequence.length === 0 && (
+                        <button
+                            onClick={startSequenceGame}
+                            style={{
+                                background: '#10b981',
+                                color: 'white',
+                                border: 'none',
+                                padding: '1rem 2rem',
+                                borderRadius: '12px',
+                                fontSize: '1.2rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                marginBottom: '2rem'
+                            }}
+                        >
+                            START
+                        </button>
+                    )}
+
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, 150px)',
+                        gridTemplateRows: 'repeat(2, 150px)',
+                        gap: '1rem'
+                    }}>
+                        {Object.entries(colors).map(([color, hex]) => (
+                            <button
+                                key={color}
+                                onClick={() => handleSequenceButtonClick(color)}
+                                disabled={!isPlayerTurn}
+                                style={{
+                                    background: activeButton === color ? '#ffffff' : hex,
+                                    border: 'none',
+                                    borderRadius: '12px',
+                                    cursor: isPlayerTurn ? 'pointer' : 'not-allowed',
+                                    opacity: isPlayerTurn ? 1 : 0.6,
+                                    transition: 'all 0.2s',
+                                    transform: activeButton === color ? 'scale(0.95)' : 'scale(1)'
+                                }}
+                            />
+                        ))}
+                    </div>
+
+                    <div style={{ marginTop: '2rem', fontSize: '1.2rem' }}>Score: {score}</div>
+                </div>
+            </div>
+        );
+    }
+
+    // ===================================
+    // 🎨 RENDER: COMPLETION SCREEN
+    // ===================================
+
+    if (gameState === 'completed') {
+        const earnedXP = selectedGame.xpReward + (streakCount * 5);
+        const earnedCoins = 10; // Base coins per game
+
+        return (
+            <div style={{
+                minHeight: '100vh',
+                background: 'linear-gradient(to right top, #fb735f, #ff6871, #ff5f85, #ff599c, #ff58b5)',
+                color: 'white',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                padding: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+            }}>
+                <div style={{ maxWidth: '500px', width: '100%', textAlign: 'center' }}>
+                    <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🏆</div>
+                    <h1 style={{
+                        fontSize: '2.5rem',
+                        fontWeight: '800',
+                        margin: '0 0 0.5rem 0'
+                    }}>Congratulations!</h1>
+                    <p style={{
+                        fontSize: '1.2rem',
+                        opacity: '0.9',
+                        margin: '0 0 2rem 0'
+                    }}>You completed {selectedGame.name}! 🎉</p>
+
+                    {/* Rewards Section */}
+                    <div style={{
+                        background: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: '16px',
+                        padding: '1.5rem',
+                        marginBottom: '1.5rem',
+                        backdropFilter: 'blur(10px)'
+                    }}>
+                        <h3 style={{
+                            margin: '0 0 1rem 0',
+                            fontSize: '1.3rem',
+                            fontWeight: '700'
+                        }}>🎁 Rewards Earned</h3>
+
+                        <div style={{
+                            display: 'grid',
+                            gap: '1rem'
+                        }}>
+                            {/* XP Earned */}
+                            <div style={{
+                                background: 'rgba(251, 191, 36, 0.2)',
+                                padding: '1rem',
+                                borderRadius: '12px',
+                                border: '2px solid rgba(251, 191, 36, 0.4)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '1rem'
+                            }}>
+                                <Star style={{ color: '#fbbf24', width: '2.5rem', height: '2.5rem' }} />
+                                <div style={{ flex: 1, textAlign: 'left' }}>
+                                    <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#fbbf24' }}>
+                                        +{earnedXP} XP
+                                    </div>
+                                    <div style={{ fontSize: '0.9rem', opacity: '0.9' }}>
+                                        Experience Points
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Coins Earned */}
+                            <div style={{
+                                background: 'rgba(251, 191, 36, 0.2)',
+                                padding: '1rem',
+                                borderRadius: '12px',
+                                border: '2px solid rgba(251, 191, 36, 0.4)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '1rem'
+                            }}>
+                                <div style={{ fontSize: '2.5rem' }}>🪙</div>
+                                <div style={{ flex: 1, textAlign: 'left' }}>
+                                    <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#fbbf24' }}>
+                                        +{earnedCoins} Coins
+                                    </div>
+                                    <div style={{ fontSize: '0.9rem', opacity: '0.9' }}>
+                                        Game Reward
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Score */}
+                            <div style={{
+                                background: 'rgba(16, 185, 129, 0.2)',
+                                padding: '1rem',
+                                borderRadius: '12px',
+                                border: '2px solid rgba(16, 185, 129, 0.4)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '1rem'
+                            }}>
+                                <Trophy style={{ color: '#10b981', width: '2.5rem', height: '2.5rem' }} />
+                                <div style={{ flex: 1, textAlign: 'left' }}>
+                                    <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#10b981' }}>
+                                        Score: {score}
+                                    </div>
+                                    <div style={{ fontSize: '0.9rem', opacity: '0.9' }}>
+                                        {streakCount > 0 && `${streakCount}x Streak Bonus!`}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Updated Stats */}
+                    <div style={{
+                        background: 'rgba(255, 255, 255, 0.12)',
+                        borderRadius: '12px',
+                        padding: '1rem',
+                        marginBottom: '1.5rem',
+                        backdropFilter: 'blur(10px)'
+                    }}>
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: '0.75rem',
+                            fontSize: '0.95rem'
+                        }}>
+                            <div style={{ textAlign: 'left' }}>
+                                <strong>Current Level:</strong> {userStats.level}
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                                <strong>Total XP:</strong> {userStats.xp}
+                            </div>
+                            <div style={{ textAlign: 'left' }}>
+                                <strong>Total Coins:</strong> 🪙 {userStats.coins}
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                                <strong>Streak:</strong> 🔥 {userStats.weeklyStreak}d
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Navigation Buttons */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <button
+                            style={{
+                                background: 'linear-gradient(135deg, #10b981, #059669)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '1rem 2rem',
+                                borderRadius: '12px',
+                                fontSize: '1.1rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.5rem',
+                                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                            }}
+                            onClick={() => startGame(selectedGame)}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                        >
+                            <Play size={20} />
+                            Play Again
+                        </button>
+
+                        <button
+                            style={{
+                                background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '0.9rem 2rem',
+                                borderRadius: '12px',
+                                fontSize: '1rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.5rem',
+                                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
+                            }}
+                            onClick={resetGame}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                        >
+                            <ArrowLeft size={18} />
+                            Back to Game Hub
+                        </button>
+
+                        <button
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.95)',
+                                color: 'white',
+                                border: '2px solid rgba(255, 255, 255, 0.3)',
+                                padding: '0.8rem 2rem',
+                                borderRadius: '12px',
+                                fontSize: '1rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.5rem'
+                            }}
+                            onClick={() => window.location.href = '/dashboard'}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
+                                e.currentTarget.style.transform = 'scale(1.02)';
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.95)';
+                                e.currentTarget.style.transform = 'scale(1)';
+                            }}
+                        >
+                            <Trophy size={18} />
+                            View Dashboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Loading State
+    if (loading) {
+        return (
+            <div style={{
+                minHeight: '100vh',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontSize: '1.5rem'
+            }}>
+                Loading Game Hub...
+            </div>
+
+        );
+    }
+
+    return null;
 };
 
-export default GameHub;
+export default PixelPlayGameHub;

@@ -1,14 +1,15 @@
 // src/front/components/Navigation.jsx
 import React from 'react';
-import { useAvatar } from '../Contexts/AvatarContext.jsx';
-import AvatarDisplay from './AvatarDisplay.jsx';
+import { useAvatar } from '../Contexts/AvatarContext';
+import AvatarDisplay from './AvatarDisplay';
+import ProfileCard from '../components/ProfileCard';
 import '../styles/Navigation.css';
 
 const Navigation = ({ currentPage, onNavigate }) => {
   const { currentAvatar, userStats } = useAvatar();
 
   const navItems = [
-    { id: 'dashboard', label: 'Home', icon: '🏠' },
+    { id: 'dashboard', label: 'Home', icon: '📊' },
     { id: 'editor', label: 'Editor', icon: '🎨' },
     { id: 'inventory', label: 'Collection', icon: '🎒' }
   ];

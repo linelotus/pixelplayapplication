@@ -1,0 +1,167 @@
+/* ========================================
+   AVATAR DISPLAY
+   ======================================== */
+
+.avatar-display-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  position: relative;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.avatar-display.with-border {
+  border: 4px solid #8B5CF6;
+}
+
+.avatar-svg-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-level-badge {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: #8B5CF6;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  border: 2px solid white;
+}
+
+.avatar-name {
+  margin-top: 0.5rem;
+  text-align: center;
+  font-weight: 600;
+  color: #2D3748;
+  font-size: 0.9rem;
+}
+
+/* Loading and error states */
+.avatar-display.loading,
+.avatar-display.error,
+.avatar-display.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #f3f4f6;
+  color: #9ca3af;
+  font-size: 1.5rem;
+}
+
+/* ========================================
+   STYLE SELECTOR (Responsive Compact vs Detailed View)
+   ======================================== */
+
+/* Detailed card view (desktop default) */
+.style-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.style-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  padding: 0.75rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 1rem;
+  background: white;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.style-card img {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  margin-bottom: 0.5rem;
+  object-fit: cover;
+}
+
+.style-card:hover {
+  border-color: #8B5CF6;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(139, 92, 246, 0.15);
+}
+
+.style-card.active {
+  border-color: #8B5CF6;
+  background: linear-gradient(135deg, #ede9fe, #faf5ff);
+}
+
+/* Compact tab view (mobile) */
+.style-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+  flex-wrap: wrap;
+}
+
+.style-tab {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid #ddd;
+  background: #f9fafb;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.style-tab:hover {
+  background: #f3f4f6;
+}
+
+.style-tab.active {
+  background: #8B5CF6;
+  color: white;
+  border-color: #8B5CF6;
+}
+
+/* ========================================
+   RESPONSIVE BEHAVIOR
+   ======================================== */
+
+/* Mobile-first: Compact tab view */
+@media (max-width: 768px) {
+  .style-selector {
+    display: none; /* hide cards */
+  }
+
+  .style-tabs {
+    display: flex; /* show tabs */
+  }
+}
+
+/* Desktop: Detailed card view */
+@media (min-width: 769px) {
+  .style-selector {
+    display: flex; /* show cards */
+  }
+
+  .style-tabs {
+    display: none; /* hide tabs */
+  }
+}

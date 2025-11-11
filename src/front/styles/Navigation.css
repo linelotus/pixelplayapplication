@@ -1,116 +1,133 @@
-.navigation {
-  background: white;
-  border-bottom: 2px solid #e0e0e0;
-  position: sticky;
-  top: 0;
+/* Navigation CSS - Add this to your AvatarEditorPage.css and InventoryPage.css */
+
+/* Navigation container */
+.editor-navigation,
+.inventory-navigation {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(139, 92, 246, 0.2);
+  padding: 1rem;
   z-index: 100;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
 }
 
-.nav-container {
-  max-width: 1200px;
+/* Navigation buttons container */
+.nav-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  max-width: 600px;
   margin: 0 auto;
-  padding: 15px 20px;
+}
+
+/* Base button styles */
+.nav-btn {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-}
-
-.nav-logo h2 {
-  color: #4CAF50;
-  margin: 0;
-  font-size: 1.8rem;
-  font-weight: bold;
-}
-
-.nav-items {
-  display: flex;
-  gap: 10px;
-}
-
-.nav-item {
-  padding: 10px 20px;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 25px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.875rem;
   cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
   transition: all 0.3s ease;
-  background: transparent;
-  color: #666;
-  border: 2px solid transparent;
+  text-decoration: none;
+  min-width: 140px;
+  justify-content: center;
+  font-family: inherit;
 }
 
-.nav-item:hover {
-  background: #f5f5f5;
-  transform: translateY(-2px);
-}
-
-.nav-item.active {
-  background: #4CAF50;
+/* Button variants */
+.nav-btn.primary {
+  background: linear-gradient(135deg, #8B5CF6, #A855F7);
   color: white;
-  font-weight: bold;
-  border-color: #4CAF50;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
 }
 
-.nav-icon {
-  font-size: 1.2rem;
+.nav-btn.primary:hover {
+  background: linear-gradient(135deg, #7C3AED, #9333EA);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
 }
 
-.nav-user {
-  display: flex;
-  align-items: center;
-  gap: 15px;
+.nav-btn.secondary {
+  background: linear-gradient(135deg, #6B7280, #4B5563);
+  color: white;
+  box-shadow: 0 4px 15px rgba(107, 114, 128, 0.3);
 }
 
-.user-stats {
-  text-align: right;
-  font-size: 14px;
+.nav-btn.secondary:hover {
+  background: linear-gradient(135deg, #4B5563, #374151);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(107, 114, 128, 0.4);
 }
 
-.user-level {
-  color: #333;
-  font-weight: bold;
+.nav-btn.tertiary {
+  background: linear-gradient(135deg, #10B981, #059669);
+  color: white;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
 }
 
-.user-points {
-  color: #666;
-  font-size: 12px;
+.nav-btn.tertiary:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
 }
 
-.nav-avatar {
-  cursor: pointer;
-  transition: transform 0.3s ease;
+/* Active/focus states */
+.nav-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
-.nav-avatar:hover {
-  transform: scale(1.1);
+.nav-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.5);
 }
 
-/* Mobile responsiveness */
+/* Mobile responsive */
 @media (max-width: 768px) {
-  .nav-container {
+  .nav-buttons {
     flex-direction: column;
-    gap: 15px;
-    padding: 10px;
+    gap: 0.75rem;
   }
-
-  .nav-items {
-    order: 2;
+  
+  .nav-btn {
+    width: 100%;
+    max-width: 280px;
+    padding: 1rem 1.5rem;
+    font-size: 0.9rem;
   }
-
-  .nav-user {
-    order: 1;
+  
+  .editor-navigation,
+  .inventory-navigation {
+    padding: 1.5rem 1rem;
   }
+}
 
-  .nav-item {
-    padding: 8px 15px;
-    font-size: 13px;
+@media (max-width: 480px) {
+  .nav-btn {
+    min-width: auto;
+    padding: 0.875rem 1.25rem;
+    font-size: 0.8rem;
   }
+}
 
-  .nav-logo h2 {
-    font-size: 1.5rem;
+/* Add padding to page content to account for fixed navigation */
+.avatar-editor-page,
+.inventory-page {
+  padding-bottom: 100px; /* Space for fixed navigation */
+}
+
+@media (max-width: 768px) {
+  .avatar-editor-page,
+  .inventory-page {
+    padding-bottom: 180px; /* More space for mobile stacked buttons */
   }
 }

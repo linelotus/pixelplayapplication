@@ -1,33 +1,33 @@
 import React from 'react';
-import { useAvatar } from '../../context/AvatarContext';
+import { useAvatar } from '../../Context/AvatarContext';
 import './WorkoutCard.css';
 
-const WorkoutCard = ({ 
-  title, 
-  icon, 
-  points, 
-  duration, 
+const WorkoutCard = ({
+  title,
+  icon,
+  points,
+  duration,
   type,
-  description 
+  description
 }) => {
-  const { 
-    addPoints, 
-    completeWorkout, 
-    updateDailyChallenge, 
+  const {
+    addPoints,
+    completeWorkout,
+    updateDailyChallenge,
     unlockItem,
-    dailyChallenge 
+    dailyChallenge
   } = useAvatar();
 
   const handleWorkout = () => {
     // Complete the workout
     completeWorkout(duration);
     addPoints(points);
-    
+
     // Update daily challenge if it matches
     if (dailyChallenge.type === type && !dailyChallenge.completed) {
       updateDailyChallenge(1); // Add 1 to progress
     }
-    
+
     // Maybe unlock something new (30% chance)
     if (Math.random() > 0.7) {
       const items = ['hoodie', 'cap', 'sunglasses', 'medal', 'trophy'];
